@@ -61,8 +61,11 @@ def cities_dict(cities_list):
     return d
 def sort_cities_dict(d):
     # данная функция делает из словаря два отсортированных по возрастанию списка
+    # и возвращает их
+
     b = []
     c = []
+
     for k, v in d.items():
         b.append(k)
         c.append(v)
