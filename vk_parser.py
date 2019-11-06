@@ -4,17 +4,31 @@ import requests
 
 def autorize():
     #Функция авторизации ВК
-    vk_session = vk_api.VkApi('+79054831145', 'mikhailo')
+    #Во избежание утечки данные кодируются
+    a = [b'\xff\xfe+\x007\x009\x000\x005\x004\x008\x003\x001\x001\x004\x005\x00'.decode('utf - 16'),
+         b'\xff\xfem\x00i\x00k\x00h\x00a\x00i\x00l\x00o\x00'.decode('utf - 16')]
+    vk_session = vk_api.VkApi(a[0], a[1])
     vk_session.auth()
     vk = vk_session.get_api()
+
     return vk
-def users_list(groups):
+
+def create_groups_list():
+    groups_list = []
+    f = open("vk_groups.txt")
+    for line in f:
+        line = line.replace("\n", "")
+        line = line.replace(" ", '')
+        groups_list.append(line)
+    return groups_list
+
+def users_list(groups_list):
     #Данная функция  получает на вход списокь групп ВК, с которых необходимо получить данные,
     #и возвращает список идентификаторов пользователей
 
     id_list = []#список для занесения полученных идентификаторов
 
-    for i in groups:
+    for i in groups_list:
         #Получаем количество пользователей в группе
         temp = vk.groups.get_members(group_id=i)
         count = temp.get("count")
@@ -28,14 +42,15 @@ def users_list(groups):
         new_id_list = list(set(id_list))
     print("Получен список уникальных идентификаторов пользователей")
     return new_id_list
-def cities_list(id_list):
+
+def cities_list(new_id_list):
     #функция получает на вход список идентификаторов пользователей
     #и возвращает список городов, которые указаны как город проживания на странице пользователей
 
     cities_list = []#Список для занесения городов
     counter = 0#счетчик количества обработанных страниц
 
-    for i in id_list:
+    for i in new_id_list:
         if counter % 100 == 0:
             print("обработано " + str(counter) + " записей")
         temp = vk.users.get(user_id=i, fields='city')
@@ -48,6 +63,7 @@ def cities_list(id_list):
         counter += 1
     print("Получен список городов пользователей")
     return cities_list
+
 def cities_dict(cities_list):
     d = {}
     for i in cities_list:
@@ -59,16 +75,20 @@ def cities_dict(cities_list):
             d[i] = 1
     print(d)
     return d
+
 def sort_cities_dict(d):
     # данная функция делает из словаря два отсортированных по возрастанию списка
     # и возвращает их
+    b = []#список городов
+    c = []#список с населением
 
-    b = []
-    c = []
-
+    #добавление элементов из словаря в список
     for k, v in d.items():
         b.append(k)
         c.append(v)
+
+    #сортировка по возрастанию населения(необходимо для некоторых типов вывода)
+    #используется сортировка пузырьком
     n = 1
     while n < len(c):
         for i in range(len(c) - n):
@@ -76,14 +96,25 @@ def sort_cities_dict(d):
                 c[i], c[i + 1] = c[i + 1], c[i]
                 b[i], b[i + 1] = b[i + 1], b[i]
         n += 1
+
+    #возвращаются два списка
     return b, c
+
 def open_map():
+    #Данная функция создает карту OpenStreetMap
+    #и возвращает ее в программу
     map = folium.Map(location=[52.6041877, 39.5936899], zoom_start=8, tiles="OpenStreetMap")
     return map
+
 def create_coors_array(cities_list):
-    temp = []
+    #Функиця создает список координат городов, полученных из списка cities_list
+    #Функция возвращает список из координат городов
+
+    temp = []#список для занесения координат городов
+
     for i in range(len(cities_list)):
         temp1 = []
+        #координаты получаем при помощи запроса через Яндекс - геокодер
         response = requests.get(
             'https://geocode-maps.yandex.ru/1.x/?apikey=534639cd-c71f-4af2-8610-f4263e7f0cad&geocode=' + str(
                 cities_list[i]))
@@ -94,7 +125,9 @@ def create_coors_array(cities_list):
         temp1.append(lon)
         temp1.append(lat)
         temp.append(temp1)
+    #возвращается список из координат городов
     return temp
+
 def marker_map(temp, c, map):
     icon_url = '1.png'
     for i in range(len(temp)-1):
@@ -103,15 +136,13 @@ def marker_map(temp, c, map):
         map.save("map1.html")
         print("программа завершена")
 
+#авторизация
 vk = autorize()
-groups = ["vstu.footballeague"]
-#groups = ["newsv1", "podslyshano_volgograd"]
-id_list = users_list(groups)
-cities_list = cities_list(id_list)
-d = cities_dict(cities_list)
-b,c = sort_cities_dict(d)
-map = open_map()
-temp = create_coors_array(b)
-print(temp, c)
-marker_map(temp, c, map)
+#Получение отсортированного списка городов по населению
+#И отсортированного списка с населением этих городов
+sort_cities_list, sort_population_list = sort_cities_dict(cities_dict(cities_list(users_list(create_groups_list()))))
+#Получение списка координат городов,
+#Создание OSM карты
+#Нанесение меток на карту
+marker_map(create_coors_array(sort_cities_list), sort_population_list, open_map())
 
