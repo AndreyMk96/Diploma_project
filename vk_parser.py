@@ -1,6 +1,8 @@
 import vk_api
 import folium
 import requests
+import plotly.graph_objects as go
+import time
 
 def autorize():
     #Функция авторизации ВК
@@ -10,6 +12,13 @@ def autorize():
     vk_session = vk_api.VkApi(a[0], a[1])
     vk_session.auth()
     vk = vk_session.get_api()
+
+    print(" ------------------------------------------------ ")
+    print("|                                                |")
+    print("|                 Программа запущена             |")
+    print("|                               v1.1.1           |")
+    print("|                                                |")
+    print(" ------------------------------------------------ ")
 
     return vk
 
@@ -23,7 +32,7 @@ def create_groups_list():
     return groups_list
 
 def users_list(groups_list):
-    #Данная функция  получает на вход списокь групп ВК, с которых необходимо получить данные,
+    #Данная функция  получает на вход список групп ВК, с которых необходимо получить данные,
     #и возвращает список идентификаторов пользователей
 
     id_list = []#список для занесения полученных идентификаторов
@@ -37,10 +46,16 @@ def users_list(groups_list):
         for j in range(count//1000 + 1):
             a = vk.groups.get_members(group_id=i, offset=j * 1000)
             id_list.extend(a.get('items'))
-            print(len(id_list))#выводим длину полученного списка
+        print("Количество пользователей в сообществе " + i + " " + str(len(id_list)))#выводим длину полученного списка
         #удаляем из спика одинаковые элементы
         new_id_list = list(set(id_list))
+
+    print("")
     print("Получен список уникальных идентификаторов пользователей")
+    print("Уникальных пользователей " + str(len(new_id_list)))
+    print("Время работы программы: " + str(time.time() - start_time )+ " секунд")
+
+    #возвращаем список из уникальных идентификаторов пользователей
     return new_id_list
 
 def cities_list(new_id_list):
@@ -49,19 +64,33 @@ def cities_list(new_id_list):
 
     cities_list = []#Список для занесения городов
     counter = 0#счетчик количества обработанных страниц
-
+    vlg_list = ["Волгоград", "Волжский", 'Урюпинск', 'Михайловка', 'Суровикино', 'Камышин', 'Иловля', 'Фролово', 'Кумылженская',
+                'Жирновск', 'Котово', 'Серафимович', 'Ольховка', 'Средняя Ахтуба', 'Палласовка', "Калач-на-Дону",
+                "Городище", "Краснослободск", "Новоаннинский", "Ленинск", "Дубовка", "Елань", "Николаевск", "Петров Вал"
+                "Алексеевская", "Качалино", "Котельниково", 'Лог', 'Нижний Чир', 'Светлый Яр', "Barcelona", "Los Angeles",
+                "New York City", "Chicago", 'Abu Dhabi', 'São Paulo', 'Lyon', 'Asunción', 'Porto', 'Baghdad', 'Seoul', 'Sydney',
+                'San Francisco', 'Philadelphia', 'München', 'Praha', 'Tokyo', 'Liverpool', 'Boston', 'Berlin', 'Dortmund']
     for i in new_id_list:
         if counter % 100 == 0:
+            print("")
             print("обработано " + str(counter) + " записей")
+            print("Время работы программы " + str(int((time.time() - start_time)//60)) + " минут " +
+                  str(int((time.time() - start_time) % 60))+" секунд")
+            print("")
         temp = vk.users.get(user_id=i, fields='city')
         temp1 = " ".join(str(temp) for x in temp)
         if "title" in temp1:
             start = temp1.find("title") + 9
             end = len(temp1) - 4
-            cities_list.append(temp1[start:end])
-            print(temp1[start:end])
+            name_city = temp1[start:end]
+            if name_city not in vlg_list:
+                cities_list.append(name_city)
+                print(name_city)
         counter += 1
+
+    print(" ")
     print("Получен список городов пользователей")
+
     return cities_list
 
 def cities_dict(cities_list):
@@ -98,6 +127,10 @@ def sort_cities_dict(d):
         n += 1
 
     #возвращаются два списка
+    print(b)
+    print(c)
+    print(len(b), len(c))
+    create_diagram(b, c)
     return b, c
 
 def open_map():
@@ -111,31 +144,83 @@ def create_coors_array(cities_list):
     #Функция возвращает список из координат городов
 
     temp = []#список для занесения координат городов
+    i = 0
 
     for i in range(len(cities_list)):
+        if i % 50 == 0:
+            print("Нанесено " + str(i) + " маркеров")
+
         temp1 = []
         #координаты получаем при помощи запроса через Яндекс - геокодер
         response = requests.get(
             'https://geocode-maps.yandex.ru/1.x/?apikey=534639cd-c71f-4af2-8610-f4263e7f0cad&geocode=' + str(
                 cities_list[i]))
         b = response.content.decode("UTF - 8")
-        lat = float(b[b.find('<Envelope><lowerCorner>') + 23:b.find('<Envelope><lowerCorner>') + 31])
-        lon = float(b[b.find('<Envelope><lowerCorner>') + 33:b.find('<Envelope><lowerCorner>') + 40])
-        b = b.replace(' ', ', ')
-        temp1.append(lon)
-        temp1.append(lat)
-        temp.append(temp1)
+        lat = (b[b.find('<Envelope><lowerCorner>') + 23:b.find('<Envelope><lowerCorner>') + 31])
+        lon = (b[b.find('<Envelope><lowerCorner>') + 33:b.find('<Envelope><lowerCorner>') + 40])
+        if ' ' not in lat and ' ' not in lon:
+            lat = float(lat)
+            lat += 0.6
+            lon = float(lon)
+            lon += 0.4
+            temp1.append(lon)
+            temp1.append(lat)
+            temp.append(temp1)
+        else:
+            print("ошибка в считывании координат в строке " + b)
+            temp.append(["error"])
+
+
     #возвращается список из координат городов
+    print(" ")
+    print("Получен список координат городов")
+    print(temp)
+    print(len(temp))
     return temp
 
 def marker_map(temp, c, map):
-    icon_url = '1.png'
-    for i in range(len(temp)-1):
-        icon = folium.features.CustomIcon(icon_url, icon_size=(c[i]*3, c[i]*3))
-        folium.Marker(location=temp[i],icon = icon).add_to(map)
-        map.save("map1.html")
-        print("программа завершена")
+    #функция принимает список городов и координат,
+    #и наносит отметки на карту
 
+    icon_url = '1.png'
+    markers = 0
+
+    for i in range(len(temp)):
+        size = c[i]
+        if(size > 70):
+            size = 70
+        if size < 20:
+            size = 20
+        if "error" not in temp[i]:
+            icon = folium.features.CustomIcon(icon_url, icon_size=(size, size))
+            folium.Marker(location=temp[i],icon = icon).add_to(map)
+            map.save("map1.html")
+            markers += 1
+
+    print(" ")
+    print("программа завершена")
+    print("отметок" + str(markers))
+
+def create_diagram(b,c):
+    #функция принимает отсортированные списки с городами пользователей, и населением
+    #и рисует диаграм на основании 25 наиболее популярных для миграции городов
+
+    b.reverse()
+    c.reverse()
+    labels = []
+    values = []
+    for i in range(30):
+        labels.append(b[i])
+        values.append(c[i])
+
+    fig = go.Figure(data=[go.Pie(labels=labels, values=values)])
+    fig.show()
+
+    print(" ")
+    print("Диаграма получена")
+
+#засекаем время началd работы программы
+start_time = time.time()
 #авторизация
 vk = autorize()
 #Получение отсортированного списка городов по населению
