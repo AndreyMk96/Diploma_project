@@ -16,7 +16,7 @@ def autorize():
     print(" ------------------------------------------------ ")
     print("|                                                |")
     print("|                 Программа запущена             |")
-    print("|                               v1.1.1           |")
+    print("|                               v1.2.1           |")
     print("|                                                |")
     print(" ------------------------------------------------ ")
 
@@ -67,7 +67,7 @@ def cities_list(new_id_list):
     vlg_list = ["Волгоград", "Волжский", 'Урюпинск', 'Михайловка', 'Суровикино', 'Камышин', 'Иловля', 'Фролово', 'Кумылженская',
                 'Жирновск', 'Котово', 'Серафимович', 'Ольховка', 'Средняя Ахтуба', 'Палласовка', "Калач-на-Дону",
                 "Городище", "Краснослободск", "Новоаннинский", "Ленинск", "Дубовка", "Елань", "Николаевск", "Петров Вал"
-                "Алексеевская", "Качалино", "Котельниково", 'Лог', 'Нижний Чир', 'Светлый Яр', "Barcelona", "Los Angeles",
+                "Алексеевская", "Качалино", "Котельниково", 'Лог', 'Нижний Чир', 'Светлый Яр', 'Госпитомник', "Barcelona", "Los Angeles",
                 "New York City", "Chicago", 'Abu Dhabi', 'São Paulo', 'Lyon', 'Asunción', 'Porto', 'Baghdad', 'Seoul', 'Sydney',
                 'San Francisco', 'Philadelphia', 'München', 'Praha', 'Tokyo', 'Liverpool', 'Boston', 'Berlin', 'Dortmund']
     for i in new_id_list:
@@ -148,7 +148,11 @@ def create_coors_array(cities_list):
 
     for i in range(len(cities_list)):
         if i % 50 == 0:
-            print("Нанесено " + str(i) + " маркеров")
+            print("")
+            print("----------------------|")
+            print("Получено " + str(i) + " Координат|")
+            print("----------------------|")
+            print("")
 
         temp1 = []
         #координаты получаем при помощи запроса через Яндекс - геокодер
@@ -156,50 +160,54 @@ def create_coors_array(cities_list):
             'https://geocode-maps.yandex.ru/1.x/?apikey=534639cd-c71f-4af2-8610-f4263e7f0cad&geocode=' + str(
                 cities_list[i]))
         b = response.content.decode("UTF - 8")
-        lat = (b[b.find('<Envelope><lowerCorner>') + 23:b.find('<Envelope><lowerCorner>') + 31])
-        lon = (b[b.find('<Envelope><lowerCorner>') + 33:b.find('<Envelope><lowerCorner>') + 40])
-        if ' ' not in lat and ' ' not in lon:
+        #print(b)
+        #lat = (b[b.find('<Envelope><lowerCorner>') + 23:b.find('<Envelope><lowerCorner>') + 31])
+        start = b.find('<pos>') + 5
+        end = b.find(' ',start,len(b))
+        lat = b[start:end]
+        lon = b[end + 1:b.find('</pos>')]
+        print(str(cities_list[i]),lat, lon)
+        try:
             lat = float(lat)
-            lat += 0.6
             lon = float(lon)
-            lon += 0.4
             temp1.append(lon)
             temp1.append(lat)
             temp.append(temp1)
-        else:
-            print("ошибка в считывании координат в строке " + b)
-            temp.append(["error"])
+        except:
+            print("error")
 
-
-    #возвращается список из координат городов
     print(" ")
     print("Получен список координат городов")
-    print(temp)
-    print(len(temp))
+    print("Всего " + str(len(temp)) + "координат")
+    print("")
+
+    # возвращается список из координат городов
     return temp
 
 def marker_map(temp, c, map):
-    #функция принимает список городов и координат,
-    #и наносит отметки на карту
+    # функция принимает список городов и координат,
+    # и наносит отметки на карту
 
     icon_url = '1.png'
     markers = 0
 
     for i in range(len(temp)):
         size = c[i]
-        if(size > 70):
+        if (size > 70):
             size = 70
         if size < 20:
             size = 20
         if "error" not in temp[i]:
             icon = folium.features.CustomIcon(icon_url, icon_size=(size, size))
-            folium.Marker(location=temp[i],icon = icon).add_to(map)
-            map.save("map1.html")
+            folium.Marker(location=temp[i], icon=icon).add_to(map)
             markers += 1
+        if i % 50 == 0:
+            print("Нанесено " + str(i) + " маркеров")
+    map.save("map1.html")
 
-    print(" ")
+    print("ненесено отметок " + str(markers))
+    print()
     print("программа завершена")
-    print("отметок" + str(markers))
 
 def create_diagram(b,c):
     #функция принимает отсортированные списки с городами пользователей, и населением
