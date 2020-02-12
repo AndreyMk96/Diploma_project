@@ -3,6 +3,7 @@ import folium
 import requests
 import plotly.graph_objects as go
 import time
+import sqlite3
 
 def autorize():
     #Функция авторизации ВК
@@ -16,11 +17,18 @@ def autorize():
     print(" ------------------------------------------------ ")
     print("|                                                |")
     print("|                 Программа запущена             |")
-    print("|                               v1.2.1           |")
+    print("|                               v1.2.3           |")
     print("|                                                |")
     print(" ------------------------------------------------ ")
 
     return vk
+
+def create_sql():
+    conn = sqlite3.connect("base.db")  # или :memory: чтобы сохранить в RAM
+    cursor = conn.cursor()
+    cursor.execute("""CREATE TABLE city
+                      (user_city)
+                   """)
 
 def create_groups_list():
     groups_list = []
@@ -62,31 +70,49 @@ def cities_list(new_id_list):
     #функция получает на вход список идентификаторов пользователей
     #и возвращает список городов, которые указаны как город проживания на странице пользователей
 
+    conn = sqlite3.connect("base.db")
+    cursor = conn.cursor()
+    cursor.execute("""CREATE TABLE city
+                          (user_city, user_city2, value)
+                       """)
+    i = 0
+    vlg_list = []
     cities_list = []#Список для занесения городов
     counter = 0#счетчик количества обработанных страниц
-    vlg_list = ["Волгоград", "Волжский", 'Урюпинск', 'Михайловка', 'Суровикино', 'Камышин', 'Иловля', 'Фролово', 'Кумылженская',
-                'Жирновск', 'Котово', 'Серафимович', 'Ольховка', 'Средняя Ахтуба', 'Палласовка', "Калач-на-Дону",
-                "Городище", "Краснослободск", "Новоаннинский", "Ленинск", "Дубовка", "Елань", "Николаевск", "Петров Вал"
-                "Алексеевская", "Качалино", "Котельниково", 'Лог', 'Нижний Чир', 'Светлый Яр', 'Госпитомник', "Barcelona", "Los Angeles",
-                "New York City", "Chicago", 'Abu Dhabi', 'São Paulo', 'Lyon', 'Asunción', 'Porto', 'Baghdad', 'Seoul', 'Sydney',
-                'San Francisco', 'Philadelphia', 'München', 'Praha', 'Tokyo', 'Liverpool', 'Boston', 'Berlin', 'Dortmund']
-    for i in new_id_list:
+    f = open('cities_res.txt', 'r', encoding="utf-8")
+    for line in f:
+        vlg_list.append(line[0:len(line) - 1])
+    f.close()
+
+    #for i in range(len(new_id_list)):
+    while i < len(new_id_list):
         if counter % 100 == 0:
             print("")
             print("обработано " + str(counter) + " записей")
             print("Время работы программы " + str(int((time.time() - start_time)//60)) + " минут " +
                   str(int((time.time() - start_time) % 60))+" секунд")
             print("")
-        temp = vk.users.get(user_id=i, fields='city')
+        try:
+            temp = vk.users.get(user_id=new_id_list[i], fields='city')
+            counter += 1
+            i = i + 1
+        except:
+            print("ВНИМАНИЕ, ПРОБЛЕМА С ПОДКЛЮЧЕНИЕМ!")
+            time.sleep(3)
+
         temp1 = " ".join(str(temp) for x in temp)
         if "title" in temp1:
             start = temp1.find("title") + 9
             end = len(temp1) - 4
             name_city = temp1[start:end]
-            if name_city not in vlg_list:
-                cities_list.append(name_city)
-                print(name_city)
-        counter += 1
+            if len(name_city) >= 2:
+                if (name_city not in vlg_list) and (ord(name_city[0]) >= 1040 and ord(name_city[0]) <= 1071):
+                    cities_list.append(name_city)
+                    cursor.execute("""INSERT INTO city
+                                      VALUES ('%s','','')
+                                      """%(name_city))
+                    conn.commit()
+                    print(name_city)
 
     print(" ")
     print("Получен список городов пользователей")
@@ -94,8 +120,19 @@ def cities_list(new_id_list):
     return cities_list
 
 def cities_dict(cities_list):
+    con = sqlite3.connect('base.db')
+    cities_list_2 = []
+    with con:
+        cur = con.cursor()
+        cur.execute("SELECT * FROM city")
+        rows = cur.fetchall()
+
+        for row in rows:
+            cities_list_2.append(''.join(row))
+
+
     d = {}
-    for i in cities_list:
+    for i in cities_list_2:
         if i in d:
             v = d[i]
             del (d[i])
@@ -110,12 +147,17 @@ def sort_cities_dict(d):
     # и возвращает их
     b = []#список городов
     c = []#список с населением
+    con = sqlite3.connect('base.db')
+    cursor = con.cursor()
 
     #добавление элементов из словаря в список
     for k, v in d.items():
         b.append(k)
         c.append(v)
-
+        cursor.execute("""INSERT INTO city
+                                                      VALUES ('','%s','%s')
+                                                      """ % (k, v))
+        con.commit()
     #сортировка по возрастанию населения(необходимо для некоторых типов вывода)
     #используется сортировка пузырьком
     n = 1
@@ -213,19 +255,27 @@ def create_diagram(b,c):
     #функция принимает отсортированные списки с городами пользователей, и населением
     #и рисует диаграм на основании 25 наиболее популярных для миграции городов
 
+    #Диаграмма строится по 30 городам, если их количество в списке больше 30
+    #или по количеству городов в списке, если их меньше 30
+    if len(b) >=30 or len(c) >= 30:
+        n = 30
+    else:
+        n = len(b)
     b.reverse()
     c.reverse()
     labels = []
     values = []
-    for i in range(30):
+    for i in range(n):
         labels.append(b[i])
         values.append(c[i])
 
     fig = go.Figure(data=[go.Pie(labels=labels, values=values)])
     fig.show()
-
+    #fig.write_image("fig1.png")
+    #fig.write_image("fig1.jpeg")
     print(" ")
     print("Диаграма получена")
+
 
 #засекаем время началd работы программы
 start_time = time.time()
